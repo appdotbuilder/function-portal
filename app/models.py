@@ -37,6 +37,19 @@ class FunctionConfig(SQLModel, table=True):
     executions: List["FunctionExecution"] = Relationship(back_populates="function_config")
 
 
+class FunctionCall(SQLModel, table=True):
+    """Model for storing external API call information"""
+
+    __tablename__ = "function_calls"  # type: ignore[assignment]
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    parameters: str = Field(default="", description="Input parameters for the API call as JSON string")
+    endpoint: str = Field(max_length=500, description="URL of the external API to be called")
+    api_key: Optional[str] = Field(default=None, max_length=500, description="Authentication token or API key")
+    error_message: Optional[str] = Field(default=None, max_length=1000, description="Error message from API call")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class FunctionExecution(SQLModel, table=True):
     """Record of an external function call execution"""
 
@@ -66,6 +79,23 @@ class FunctionExecution(SQLModel, table=True):
 
 
 # Non-persistent schemas for validation and API
+
+
+class FunctionCallCreate(SQLModel, table=False):
+    """Schema for creating a new function call"""
+
+    parameters: str = Field(default="", description="Input parameters as JSON string")
+    endpoint: str = Field(max_length=500, description="API endpoint URL")
+    api_key: Optional[str] = Field(default=None, max_length=500, description="API key or token")
+
+
+class FunctionCallUpdate(SQLModel, table=False):
+    """Schema for updating a function call"""
+
+    parameters: Optional[str] = Field(default=None, description="Input parameters as JSON string")
+    endpoint: Optional[str] = Field(default=None, max_length=500, description="API endpoint URL")
+    api_key: Optional[str] = Field(default=None, max_length=500, description="API key or token")
+    error_message: Optional[str] = Field(default=None, max_length=1000, description="Error message")
 
 
 class FunctionConfigCreate(SQLModel, table=False):
