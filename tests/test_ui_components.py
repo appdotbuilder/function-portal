@@ -249,8 +249,7 @@ class TestUIIntegration:
 
     async def test_responsive_design_elements(self, user: User, new_db) -> None:
         """Test that UI components have proper styling classes"""
-        app.function_dashboard.create()
-
+        # Already registered in conftest.py via startup(), don't double-register
         await user.open("/")
 
         # Check that main containers have proper responsive classes

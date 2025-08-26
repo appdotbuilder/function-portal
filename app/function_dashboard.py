@@ -17,8 +17,8 @@ class FunctionDashboard:
         self.execution_service = FunctionExecutionService()
         self.executing_functions: Dict[int, bool] = {}
         self.status_container: Optional[ui.column] = None
-        self.execution_log: Optional[ui.column] = None
-        self.error_display: Optional[ui.column] = None
+        self.function_buttons_container: Optional[ui.column] = None
+        self.execution_log_container: Optional[ui.column] = None
 
     def create(self) -> None:
         """Create the function dashboard UI"""
@@ -45,13 +45,9 @@ class FunctionDashboard:
                 # Function buttons section
                 with ui.card().classes("w-full p-6 shadow-lg rounded-xl"):
                     ui.label("Available Functions").classes("text-xl font-semibold mb-4")
-                    try:
-                        self._create_function_buttons()
-                    except Exception as e:
-                        import logging
-
-                        logging.getLogger(__name__).error(f"Error creating function buttons: {str(e)}", exc_info=True)
-                        ui.label(f"⚠️ Error loading functions: {str(e)}").classes("text-red-600 p-4")
+                    self.function_buttons_container = ui.column().classes("w-full")
+                    # Initial render of function buttons
+                    self._render_function_buttons()
 
                 # Status and execution log section
                 with ui.row().classes("w-full gap-6"):
@@ -59,45 +55,33 @@ class FunctionDashboard:
                     with ui.card().classes("flex-1 p-6 shadow-lg rounded-xl"):
                         ui.label("Execution Status").classes("text-xl font-semibold mb-4")
                         self.status_container = ui.column().classes("gap-2")
-                        try:
-                            self._update_status_display()
-                        except Exception as e:
-                            import logging
-
-                            logging.getLogger(__name__).error(f"Error updating status display: {str(e)}", exc_info=True)
-                            with self.status_container:
-                                ui.label(f"⚠️ Status unavailable: {str(e)}").classes("text-red-600")
+                        self._update_status_display()
 
                     # Recent executions
                     with ui.card().classes("flex-1 p-6 shadow-lg rounded-xl"):
                         ui.label("Recent Executions").classes("text-xl font-semibold mb-4")
-                        self.execution_log = ui.column().classes("gap-2 max-h-80 overflow-auto")
-                        try:
-                            self._update_execution_log()
-                        except Exception as e:
-                            import logging
-
-                            logging.getLogger(__name__).error(f"Error updating execution log: {str(e)}", exc_info=True)
-                            with self.execution_log:
-                                ui.label(f"⚠️ Execution log unavailable: {str(e)}").classes("text-red-600")
+                        self.execution_log_container = ui.column().classes("gap-2 max-h-80 overflow-auto")
+                        # Initial render of execution log
+                        self._render_execution_log()
 
         except Exception as e:
             import logging
 
             logger = logging.getLogger(__name__)
             logger.error(f"Critical error in dashboard UI creation: {str(e)}", exc_info=True)
-
-            # Show critical error if error_display is available
-            if self.error_display is not None:
-                with self.error_display:
-                    with ui.card().classes("w-full p-6 bg-red-50 border border-red-200 rounded-lg"):
-                        ui.label("⚠️ Critical Dashboard Error").classes("text-red-800 font-bold")
-                        ui.label(f"Failed to create dashboard UI: {str(e)}").classes("text-red-700 text-sm")
             raise
 
+    @ui.refreshable
     def _create_function_buttons(self) -> None:
-        """Create buttons for all active function configurations"""
+        """Refreshable method to create function buttons"""
+        self._render_function_buttons()
+
+    def _render_function_buttons(self) -> None:
+        """Render function buttons for all active function configurations"""
         try:
+            if self.function_buttons_container:
+                self.function_buttons_container.clear()
+
             configs = FunctionConfigService.get_all_active()
 
             if not configs:
@@ -264,8 +248,6 @@ class FunctionDashboard:
             self.executing_functions[config_id] = False
             try:
                 self._refresh_dashboard()
-                self._update_status_display()
-                self._update_execution_log()
             except Exception as e:
                 import logging
 
@@ -307,54 +289,41 @@ class FunctionDashboard:
                     )
                     pass  # Avoid cascading errors
 
+    @ui.refreshable
     def _update_execution_log(self) -> None:
-        """Update the execution log display"""
-        if not self.execution_log:
-            return
+        """Refreshable method to update execution log"""
+        self._render_execution_log()
 
+    def _render_execution_log(self) -> None:
+        """Render the execution log display"""
         try:
-            self.execution_log.clear()
+            if self.execution_log_container:
+                self.execution_log_container.clear()
 
-            try:
-                recent_executions = FunctionExecutionService.get_recent_executions(10)
-            except Exception as e:
-                import logging
-
-                logging.getLogger(__name__).error(f"Error fetching recent executions: {str(e)}", exc_info=True)
-                with self.execution_log:
-                    ui.label("⚠️ Unable to load execution history").classes("text-red-600 italic")
-                    ui.label(f"Error: {str(e)}").classes("text-red-500 text-sm")
-                return
-
-            with self.execution_log:
-                if not recent_executions:
-                    ui.label("No executions yet").classes("text-gray-500 italic")
-                    ui.label("Execute some functions to see their history here.").classes("text-gray-400 text-sm")
-                    return
-
-                for execution in recent_executions:
-                    try:
-                        self._create_execution_log_item(execution)
-                    except Exception as e:
-                        import logging
-
-                        logging.getLogger(__name__).error(f"Error creating execution log item: {str(e)}", exc_info=True)
-                        # Create a minimal error entry
-                        with ui.row().classes("w-full p-2 border-b border-gray-100"):
-                            ui.label("⚠️ Log entry error").classes("text-red-500 text-sm")
-
+            recent_executions = FunctionExecutionService.get_recent_executions(10)
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(f"Critical error updating execution log: {str(e)}", exc_info=True)
+            logging.getLogger(__name__).error(f"Error fetching recent executions: {str(e)}", exc_info=True)
+            ui.label("⚠️ Unable to load execution history").classes("text-red-600 italic")
+            ui.label(f"Error: {str(e)}").classes("text-red-500 text-sm")
+            return
 
+        if not recent_executions:
+            ui.label("No executions yet").classes("text-gray-500 italic")
+            ui.label("Execute some functions to see their history here.").classes("text-gray-400 text-sm")
+            return
+
+        for execution in recent_executions:
             try:
-                self.execution_log.clear()
-                with self.execution_log:
-                    ui.label("⚠️ Execution log unavailable").classes("text-red-600")
-                    ui.label(f"Error: {str(e)}").classes("text-red-500 text-sm")
-            except Exception:
-                pass  # Avoid cascading errors
+                self._create_execution_log_item(execution)
+            except Exception as e:
+                import logging
+
+                logging.getLogger(__name__).error(f"Error creating execution log item: {str(e)}", exc_info=True)
+                # Create a minimal error entry
+                with ui.row().classes("w-full p-2 border-b border-gray-100"):
+                    ui.label("⚠️ Log entry error").classes("text-red-500 text-sm")
 
     def _create_execution_log_item(self, execution) -> None:
         """Create a single execution log item"""
@@ -426,9 +395,23 @@ class FunctionDashboard:
                 ui.label("Display error").classes("text-red-500 text-xs")
 
     def _refresh_dashboard(self) -> None:
-        """Refresh the entire dashboard"""
-        # This would ideally use @ui.refreshable, but for now we'll update specific components
-        pass
+        """Refresh the dashboard components"""
+        try:
+            if hasattr(self._create_function_buttons, "refresh"):
+                self._create_function_buttons.refresh()
+            else:
+                self._render_function_buttons()
+
+            if hasattr(self._update_execution_log, "refresh"):
+                self._update_execution_log.refresh()
+            else:
+                self._render_execution_log()
+
+            self._update_status_display()
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).error(f"Error refreshing dashboard: {str(e)}", exc_info=True)
 
     @staticmethod
     def _truncate_url(url: str, max_length: int = 40) -> str:
@@ -445,22 +428,24 @@ def create() -> None:
     @ui.page("/")
     async def index():
         # Immediate visibility indicator to confirm page loading
-        ui.label("Function Trigger Dashboard - Initializing...").classes(
-            "text-2xl font-bold text-blue-600 text-center w-full p-4"
-        ).mark("dashboard-init")
+        init_label = (
+            ui.label("Function Trigger Dashboard - Initializing...")
+            .classes("text-2xl font-bold text-blue-600 text-center w-full p-4")
+            .mark("dashboard-init")
+        )
 
-        # Error display container for critical errors
-        error_display = ui.column().classes("w-full").mark("error-display")
+        # Root error message label - hidden by default
+        error_message_label = ui.label().classes("text-red-700 font-bold p-4 bg-red-100 rounded hidden")
 
         try:
-            # Clear initialization message and create dashboard
-            dashboard.error_display = error_display
+            # Create dashboard
             dashboard.create()
 
-            # Dashboard created successfully - init message will be replaced naturally
+            # Remove the initialization message after successful dashboard creation
+            init_label.delete()
 
             # Auto-refresh execution log every 10 seconds
-            ui.timer(10.0, dashboard._update_execution_log)
+            ui.timer(10.0, dashboard._update_execution_log.refresh)
             ui.timer(5.0, dashboard._update_status_display)
 
         except Exception as e:
@@ -469,17 +454,16 @@ def create() -> None:
             logger = logging.getLogger(__name__)
             logger.error(f"Critical error in dashboard creation: {str(e)}", exc_info=True)
 
-            # Display error to user
-            with error_display:
-                ui.card().classes("w-full p-6 bg-red-50 border border-red-200 rounded-lg").style(
-                    "border-left: 4px solid #ef4444;"
-                )
-                with ui.column().classes("gap-2"):
-                    ui.label("⚠️ Dashboard Loading Error").classes("text-red-800 font-bold text-lg")
-                    ui.label(f"Error: {str(e)}").classes("text-red-700 font-mono text-sm")
-                    ui.label("Please check the server logs for more details.").classes("text-red-600")
-                    ui.button(
-                        "Retry",
-                        icon="refresh",
-                        on_click=lambda: ui.navigate.to("/"),
-                    ).classes("bg-red-600 text-white px-4 py-2 rounded mt-2")
+            # Show error in the root error message label
+            error_message_label.set_text(f"⚠️ Dashboard Loading Error: {str(e)}")
+            error_message_label.classes(remove="hidden")
+
+            # Also remove the initialization message
+            init_label.delete()
+
+            # Add a retry button
+            ui.button(
+                "Retry",
+                icon="refresh",
+                on_click=lambda: ui.navigate.to("/"),
+            ).classes("bg-red-600 text-white px-4 py-2 rounded mt-4")
